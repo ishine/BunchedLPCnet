@@ -12,7 +12,7 @@ import time
 
 
 from data_utils import FeaturePCMLoader
-from hparams import create_hparams
+from hparams import HParam
 from lpcnet_bunched import LPCNetModelBunch
 from plotting_utils import LPCNetLogger, stream
 from dump_lpcnet import convert_recurrent_kernel, re_convert_recurrent_kernel
@@ -122,14 +122,14 @@ def train(args, hparams):
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
     print('Trainable Parameters: %.3fM' % parameters)
     print("r is ", hparams.n_samples_per_step)
-    optimizer = optim.Adam(model.parameters(), lr=hparams.learning_rate, amsgrad=True)
+    optimizer = optim.Adam(model.parameters(), lr=float(hparams.learning_rate), amsgrad=True)
 
     epoc_offset = 0
     if args.checkpoint is not None:
         model, optimizer, epoc_offset = load_checkpoint(args.checkpoint, model, optimizer)
         print("load checkpoint from ", args.checkpoint)
 
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=(1 - hparams.lr_decay))
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=(1 - float(hparams.lr_decay)))
     criteon   = nn.CrossEntropyLoss().cuda()
     aux_criteon = MultiResolutionSTFTLoss().cuda()
 
@@ -158,11 +158,8 @@ def train(args, hparams):
             duration = time.perf_counter() - start
             if iteration % 10 == 0:
                 logger.log_training("\nTrain", loss.item(), avg_loss, optimizer.param_groups[0]["lr"], duration, iteration)
-                if iteration % 10 == 0:
-                    logger.log_training("Train", loss.item(), avg_loss, optimizer.param_groups[0]["lr"], duration,
-                                        iteration)
-                    message = f'epoc: {epoc}/{hparams.epochs} | ({i}/{len(train_loader)}) | avg_loss: {avg_loss:#.4}'
-                    stream(message)
+                message = f'epoc: {epoc}/{hparams.epochs} | ({i}/{len(train_loader)}) | avg_loss: {avg_loss:#.4}'
+                stream(message)
             iteration += 1
 
             
@@ -183,8 +180,9 @@ def train(args, hparams):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--checkpoint', type=str, default=None, help='checkpoint')
+    parser.add_argument('--hparams', type=str, default="config.yaml")
     args = parser.parse_args()
-    hparams = create_hparams()
+    hparams = HParam(args.hparams)
 
     print("training model")
     train(args, hparams)
